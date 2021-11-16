@@ -16,6 +16,7 @@ import static org.jboss.tools.fuse.reddeer.ProjectType.JAVA;
 import static org.jboss.tools.fuse.reddeer.ProjectType.SPRING;
 import static org.jboss.tools.fuse.reddeer.wizard.NewFuseIntegrationProjectWizardDeploymentType.OPENSHIFT;
 import static org.jboss.tools.fuse.reddeer.wizard.NewFuseIntegrationProjectWizardDeploymentType.STANDALONE;
+import static org.jboss.tools.fuse.reddeer.wizard.NewFuseIntegrationProjectWizardRuntimeType.KARAF;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -87,8 +88,7 @@ public class ProjectFactory {
 		return this;
 	}
 
-	public void create() {
-
+	public void create() {		
 		PreferencesUtil.setOpenAssociatedPerspective("never");
 		boolean hasJava8 = JDK8Check.isJava8Available();
 
@@ -103,9 +103,6 @@ public class ProjectFactory {
 		String camelVersion = SupportedCamelVersions.getCamelVersionsWithLabels().get(version);
 		if (camelVersion != null) {
 			secondPage.selectCamelVersion(camelVersion);
-		} else {
-			secondPage.selectCamelVersion(
-					SupportedCamelVersions.getCamelVersionsWithLabels().get("2.23.2.fuse-790054-redhat-00001"));
 		}
 		if (deploymentType != null) {
 			secondPage.setDeploymentType(deploymentType);
@@ -122,13 +119,14 @@ public class ProjectFactory {
 			lastPage.selectTemplate(SPRINGBOOT);
 		}
 		new FinishButton(wiz).click();
-
-		if (camelVersion != null) {
-			if (!hasJava8 && new Version(getFuseVersionFromString(camelVersion)).compareTo(new Version("7.9.0")) < 0) {
-				JDK8Check.handleMissingJava8();
-			}
-		} else {
-			if (!hasJava8) {
+		
+		if(!hasJava8) {
+			//If camelVersion is not defined, last available should be used.
+			if(camelVersion == null || new Version(getFuseVersionFromString(camelVersion)).compareTo(new Version("7.9.0")) >= 0) {
+				if(runtimeType == KARAF) {
+					JDK8Check.handleMissingJava8();
+				}
+			}else {
 				JDK8Check.handleMissingJava8();
 			}
 		}
@@ -145,7 +143,6 @@ public class ProjectFactory {
 	 * Removes all projects from file system.
 	 */
 	public static void deleteAllProjects() {
-
 		ProjectExplorer explorer = new ProjectExplorer();
 		explorer.activate();
 		if (explorer.getProjects().size() > 0) {
@@ -177,7 +174,6 @@ public class ProjectFactory {
 	 *                  true - if the imported project is Fuse project
 	 */
 	public static void importExistingProject(String path, String name, boolean maven) {
-
 		ExternalProjectImportWizardDialog dialog = new ExternalProjectImportWizardDialog();
 		dialog.open();
 		WizardProjectsImportPage page = new WizardProjectsImportPage(dialog);
@@ -268,9 +264,11 @@ public class ProjectFactory {
 		wiz.cancel();
 		return templates;
 	}
-
-	private static String getFuseVersionFromString(String camelVersion) {
-
+	
+private static String getFuseVersionFromString(String camelVersion) {
+		if(camelVersion == null) {
+			return "0";
+		}
 		String fuseVersion = null;
 		Pattern p = Pattern.compile("(?<=fuse-)\\d+");
 		Matcher m = p.matcher(camelVersion);
