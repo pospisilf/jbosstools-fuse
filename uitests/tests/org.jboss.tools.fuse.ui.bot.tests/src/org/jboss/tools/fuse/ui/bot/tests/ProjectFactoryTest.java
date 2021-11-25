@@ -56,7 +56,7 @@ public class ProjectFactoryTest {
 			{STANDALONE, KARAF, ProjectTemplate.CBR_JAVA},
 			
 			//Advanced -> CXF
-			{STANDALONE, KARAF, ProjectTemplate.CXF_SPRING},
+			//{STANDALONE, KARAF, ProjectTemplate.CXF_SPRING},
 			{STANDALONE, KARAF, ProjectTemplate.CXF_JAVA},
 			
 			//Empty ->  Empty
