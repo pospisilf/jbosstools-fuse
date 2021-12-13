@@ -5,6 +5,9 @@ import static org.jboss.tools.fuse.reddeer.wizard.NewFuseIntegrationProjectWizar
 import static org.jboss.tools.fuse.reddeer.wizard.NewFuseIntegrationProjectWizardRuntimeType.KARAF;
 import static org.junit.Assert.assertTrue;
 
+import org.eclipse.reddeer.common.wait.AbstractWait;
+import org.eclipse.reddeer.common.wait.TimePeriod;
+
 import java.util.Arrays;
 import java.util.Collection;
 
@@ -18,7 +21,7 @@ import org.junit.runners.Parameterized.Parameters;
 
 public class ProjectFactoryTest {
 	private static final String PROJECT_NAME = "ProjectFactoryTest";
-
+	
 	@Parameter
 	public NewFuseIntegrationProjectWizardDeploymentType deployment;
 
@@ -35,10 +38,10 @@ public class ProjectFactoryTest {
 		//	{STANDALONE, KARAF, CBR_BLUEPRINT },
 			{STANDALONE, KARAF, CBR_BLUEPRINT}, });
 	}
-	
+
 	@BeforeClass
-	public void createProject() {
-		ProjectFactory.newProject(PROJECT_NAME).deploymentType(deployment).runtimeType(runtime).template(template).create();
+	public static void createProject() {
+		ProjectFactory.newProject(PROJECT_NAME).deploymentType(STANDALONE).runtimeType(KARAF).template(CBR_BLUEPRINT).create();
 	}
 	
 	@Test
