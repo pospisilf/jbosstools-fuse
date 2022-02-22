@@ -16,6 +16,7 @@ import static org.jboss.tools.fuse.reddeer.wizard.NewFuseIntegrationProjectWizar
 import static org.jboss.tools.fuse.reddeer.wizard.NewFuseIntegrationProjectWizardRuntimeType.KARAF;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.jboss.tools.fuse.ui.bot.tests.Activator.PLUGIN_ID;
+import static org.junit.Assume.assumeTrue;
 
 import java.io.File;
 import java.io.IOException;
@@ -27,6 +28,7 @@ import java.util.List;
 
 import org.eclipse.reddeer.common.wait.TimePeriod;
 import org.eclipse.reddeer.common.wait.WaitUntil;
+import org.eclipse.reddeer.direct.preferences.Preferences;
 import org.eclipse.reddeer.eclipse.condition.ConsoleHasText;
 import org.eclipse.reddeer.eclipse.ui.browser.WebBrowserView;
 import org.eclipse.reddeer.junit.internal.runner.ParameterizedRequirementsRunnerFactory;
@@ -37,6 +39,7 @@ import org.eclipse.reddeer.requirements.cleanworkspace.CleanWorkspaceRequirement
 import org.eclipse.reddeer.requirements.cleanworkspace.CleanWorkspaceRequirement.CleanWorkspace;
 import org.eclipse.reddeer.requirements.jre.JRERequirement.JRE;
 import org.eclipse.reddeer.requirements.openperspective.OpenPerspectiveRequirement.OpenPerspective;
+import org.jboss.tools.fuse.reddeer.JiraClient;
 import org.jboss.tools.fuse.reddeer.ProjectType;
 import org.jboss.tools.fuse.reddeer.ResourceHelper;
 import org.jboss.tools.fuse.reddeer.SupportedCamelVersions;
@@ -58,12 +61,14 @@ import org.jboss.tools.fuse.reddeer.wizard.NewFuseIntegrationProjectWizardRuntim
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ErrorCollector;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized.Parameters;
 import org.junit.runners.Parameterized.UseParametersRunnerFactory;
+import org.osgi.framework.Version;
 
 /**
  * Deployment test for all available templates to Standalone - Karaf, EAP
@@ -101,13 +106,13 @@ public class DeploymentTest {
 	// EAP
 	public static final String PROJECT_EAP_IS_DEPLOYED = "(CamelContext: spring-context) started";
 	public static final String PROJECT_EAP_IS_UNDEPLOYED = "(CamelContext: spring-context) is shutdown";
-	public static final String BROWSER_URL = "http://localhost:8080/camel-test-spring";
+	public static final String BROWSER_URL = "http://localhost:8080/camel-test-spring"; // for EAP < 7.3
+	public static final String BROWSER_URL_CDI = "http://localhost:8080/example-camel-cdi"; // for EAP >= 7.3
 	public static final String BROWSER_CONTENT_DEPLOYED = "Hello null";
 	public static final String BROWSER_CONTENT_UNDEPLOYED = "404";
-	
+
 	public static enum DeploymentStatus {
-		DEPLOY,
-		UNDEPLOY
+		DEPLOY, UNDEPLOY
 	}
 
 	private FuseProjectDefinition project;
@@ -187,7 +192,7 @@ public class DeploymentTest {
 				.template(project.getTemplate()).create();
 		new CamelProject(PROJECT_NAME).update();
 	}
-
+	
 	@After
 	public void cleanWorkspace() {
 		FuseServerManipulator.removeAllModules(serverRequirement.getConfiguration().getServer().getName());
@@ -201,7 +206,7 @@ public class DeploymentTest {
 		FuseServerManipulator.stopServer(serverName);
 		FuseServerManipulator.removeServer(serverName);
 	}
-	
+
 	@Rule
 	public ErrorCollector collector = new ErrorCollector();
 
@@ -237,7 +242,7 @@ public class DeploymentTest {
 	 * <li>start the server</li>
 	 * <li>open Fuse Shell view and execute command log:display</li>
 	 * <li>check if Fuse Shell view contains text "(CamelContext: spring-context) started"</li>
-	 * <li>open Browser View and try to open URL "http://localhost:8080/wildfly-spring"</li>
+	 * <li>open Browser View and try to open URL with project</li>
 	 * <li>remove all deployed modules</li>
 	 * <li>open Fuse Shell view and execute command log:display</li>
 	 * <li>check if Fuse Shell view contains text "(CamelContext: spring-context) is shutdown"</li>
@@ -245,14 +250,30 @@ public class DeploymentTest {
 	 */
 	@Test
 	public void testDeployment() {
+		Preferences.set("org.eclipse.debug.ui", "Console.limitConsoleOutput", "false");
+		
 		String serverName = serverRequirement.getConfiguration().getServer().getName();
+
+		String serverVersionPath = serverRequirement.getConfiguration().getServer().getVersion();
+		Version serverVersion = null;
+		//f.e. 6+, 7+
+		if(serverVersionPath.length() == 2) { 
+			serverVersion = new Version(serverVersionPath.substring(0, 1));
+		}
+		//f.e. 7.4.2
+		else {
+			serverVersion = new Version(serverVersionPath);
+		}
+		
+		
 		if (isActiveMQ()) {
 			prepareEnvironment();
 		}
 
 		// deploy project (add module...)
 		FuseServerManipulator.addModule(serverName, PROJECT_NAME);
-		collector.checkThat("Deploy project module failed!", FuseServerManipulator.hasServerModule(serverName, PROJECT_NAME), equalTo(true));
+		collector.checkThat("Deploy project module failed!",
+				FuseServerManipulator.hasServerModule(serverName, PROJECT_NAME), equalTo(true));
 
 		// check deployed
 		switch (RUNTIME_TYPE) {
@@ -260,7 +281,15 @@ public class DeploymentTest {
 			assertKaraf("The project was not properly deployed!", DeploymentStatus.DEPLOY);
 			break;
 		case "EAP":
-			assertEAP(PROJECT_EAP_IS_DEPLOYED, BROWSER_CONTENT_DEPLOYED);
+			
+			if (serverVersion.compareTo(new Version("7.3.0")) >= 0) {
+				// Issue (deployment ends with NPE for EAP >= 7.3) is opened.
+				// For more details see https://issues.redhat.com/browse/FUSETOOLS-3609
+				assumeTrue(new JiraClient().isIssueClosed("FUSETOOLS-3609"));
+				assertEAP(PROJECT_EAP_IS_UNDEPLOYED, BROWSER_CONTENT_UNDEPLOYED, BROWSER_URL_CDI);
+			} else {
+				assertEAP(PROJECT_EAP_IS_UNDEPLOYED, BROWSER_CONTENT_UNDEPLOYED, BROWSER_URL);
+			}
 			break;
 		}
 
@@ -269,7 +298,8 @@ public class DeploymentTest {
 
 		// undeploy project (remove module...)
 		FuseServerManipulator.removeAllModules(serverName);
-		collector.checkThat("Undeploy project module failed!", FuseServerManipulator.hasServerModule(serverName, PROJECT_NAME), equalTo(false));
+		collector.checkThat("Undeploy project module failed!",
+				FuseServerManipulator.hasServerModule(serverName, PROJECT_NAME), equalTo(false));
 
 		// check undeployed
 		switch (RUNTIME_TYPE) {
@@ -277,7 +307,11 @@ public class DeploymentTest {
 			assertKaraf("The project was not properly undeployed!", DeploymentStatus.UNDEPLOY);
 			break;
 		case "EAP":
-			assertEAP(PROJECT_EAP_IS_UNDEPLOYED, BROWSER_CONTENT_UNDEPLOYED);
+			if (serverVersion.compareTo(new Version("7.3.0")) >= 0) {
+				assertEAP(PROJECT_EAP_IS_UNDEPLOYED, BROWSER_CONTENT_UNDEPLOYED, BROWSER_URL_CDI);
+			} else {
+				assertEAP(PROJECT_EAP_IS_UNDEPLOYED, BROWSER_CONTENT_UNDEPLOYED, BROWSER_URL);
+			}
 			break;
 		}
 
@@ -285,32 +319,38 @@ public class DeploymentTest {
 		collector.checkThat("Console contains some 'fuse' errors!", LogChecker.noFuseError(), equalTo(true));
 	}
 
-	private void assertEAP(String consoleMessage, String browserMessage) {
+	private void assertEAP(String consoleMessage, String browserMessage, String browserURL) {
 		new WaitUntil(new ConsoleHasText(consoleMessage), TimePeriod.LONG);
 		WebBrowserView browser = new WebBrowserView();
 		browser.open();
-		browser.openPageURL(BROWSER_URL);
+		browser.openPageURL(browserURL);
 		collector.checkThat("EAP project errors!", browser.getText().contains(browserMessage), equalTo(true));
 	}
 
 	private void assertKaraf(String message, DeploymentStatus status) {
 		if (status == DeploymentStatus.DEPLOY) {
 			if (isActiveMQ()) {
-				collector.checkThat(message, new FuseShellSSH().containsLog(PROJECT_IS_DEPLOYED_ACTIVEMQ), equalTo(true));
+				collector.checkThat(message, new FuseShellSSH().containsLog(PROJECT_IS_DEPLOYED_ACTIVEMQ),
+						equalTo(true));
 			} else {
-				collector.checkThat(message, new FuseShellSSH().containsLog(
-						serverRequirement.getConfiguration().getServer().getVersion().startsWith("7")
-						? PROJECT_IS_DEPLOYED
-						: PROJECT_IS_DEPLOYED_OLD), equalTo(true));
+				collector.checkThat(message,
+						new FuseShellSSH().containsLog(
+								serverRequirement.getConfiguration().getServer().getVersion().startsWith("7")
+										? PROJECT_IS_DEPLOYED
+										: PROJECT_IS_DEPLOYED_OLD),
+						equalTo(true));
 			}
 		} else {
 			if (isActiveMQ()) {
-				collector.checkThat(message, new FuseShellSSH().containsLog(PROJECT_IS_UNDEPLOYED_ACTIVEMQ), equalTo(true));
+				collector.checkThat(message, new FuseShellSSH().containsLog(PROJECT_IS_UNDEPLOYED_ACTIVEMQ),
+						equalTo(true));
 			} else {
-				collector.checkThat(message, new FuseShellSSH().containsLog(
-						serverRequirement.getConfiguration().getServer().getVersion().startsWith("7")
-						? PROJECT_IS_UNDEPLOYED
-						: PROJECT_IS_UNDEPLOYED_OLD), equalTo(true));
+				collector.checkThat(message,
+						new FuseShellSSH().containsLog(
+								serverRequirement.getConfiguration().getServer().getVersion().startsWith("7")
+										? PROJECT_IS_UNDEPLOYED
+										: PROJECT_IS_UNDEPLOYED_OLD),
+						equalTo(true));
 			}
 		}
 	}
