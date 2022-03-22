@@ -56,6 +56,7 @@ public class FuseRequirement implements ConfigurableRequirement<FuseConfiguratio
 
 	@Override
 	public void fulfill() {
+		Preferences.set("org.eclipse.debug.ui", "Console.limitConsoleOutput", "false");
 		ServerBase serverBase = config.getServer();
 		List<String> preferences = serverBase.getProperties("preference");
 		for (String preference : preferences) {

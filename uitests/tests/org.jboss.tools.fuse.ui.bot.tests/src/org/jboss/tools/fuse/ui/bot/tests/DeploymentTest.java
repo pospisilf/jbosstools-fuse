@@ -26,9 +26,9 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
+import org.eclipse.reddeer.common.wait.AbstractWait;
 import org.eclipse.reddeer.common.wait.TimePeriod;
 import org.eclipse.reddeer.common.wait.WaitUntil;
-import org.eclipse.reddeer.direct.preferences.Preferences;
 import org.eclipse.reddeer.eclipse.condition.ConsoleHasText;
 import org.eclipse.reddeer.eclipse.ui.browser.WebBrowserView;
 import org.eclipse.reddeer.junit.internal.runner.ParameterizedRequirementsRunnerFactory;
@@ -61,7 +61,6 @@ import org.jboss.tools.fuse.reddeer.wizard.NewFuseIntegrationProjectWizardRuntim
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ErrorCollector;
@@ -186,6 +185,7 @@ public class DeploymentTest {
 
 	@Before
 	public void prepareWorkspace() {
+		
 		new CleanErrorLogRequirement().fulfill();
 		ProjectFactory.newProject(PROJECT_NAME).deploymentType(project.getDeploymentType())
 				.runtimeType(project.getRuntimeType()).version(project.getCamelVersion())
@@ -250,7 +250,8 @@ public class DeploymentTest {
 	 */
 	@Test
 	public void testDeployment() {
-		Preferences.set("org.eclipse.debug.ui", "Console.limitConsoleOutput", "false");
+		
+		AbstractWait.sleep((TimePeriod.getCustom(10000)));
 		
 		String serverName = serverRequirement.getConfiguration().getServer().getName();
 
