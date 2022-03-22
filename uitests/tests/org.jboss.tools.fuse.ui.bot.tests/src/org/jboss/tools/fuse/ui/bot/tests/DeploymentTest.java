@@ -26,7 +26,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-import org.eclipse.reddeer.common.wait.AbstractWait;
 import org.eclipse.reddeer.common.wait.TimePeriod;
 import org.eclipse.reddeer.common.wait.WaitUntil;
 import org.eclipse.reddeer.eclipse.condition.ConsoleHasText;
@@ -250,8 +249,6 @@ public class DeploymentTest {
 	 */
 	@Test
 	public void testDeployment() {
-		
-		AbstractWait.sleep((TimePeriod.getCustom(10000)));
 		
 		String serverName = serverRequirement.getConfiguration().getServer().getName();
 
