@@ -258,6 +258,10 @@ public class DeploymentTest {
 		if(serverVersionPath.length() == 2) { 
 			serverVersion = new Version(serverVersionPath.substring(0, 1));
 		}
+		//f.e. 6.1+
+		else if(serverVersionPath.length() == 4) {
+			serverVersion = new Version(serverVersionPath.substring(0, 3));
+		}
 		//f.e. 7.4.2
 		else {
 			serverVersion = new Version(serverVersionPath);
